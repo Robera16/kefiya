@@ -8,7 +8,9 @@
   "bank_account",
   "assign_against",
   "show_entries_in_payment_assignment_wizard",
+  "overlap_days",
   "column_break_gv35w",
+  "cancel_payment_entries_on_unreconciliation",
   "column_break_qzdrd",
   "payment_request_csv_action",
   "recipient_email"
@@ -57,12 +59,27 @@
    "fieldname": "bank_account",
    "fieldtype": "Section Break",
    "label": "Bank Transaction Wizard"
+  },
+  {
+   "default": "0",
+   "description": "The number of days to overlap between consecutive imports, ensuring all transactions are captured and re-checked from previous imports.",
+   "fieldname": "overlap_days",
+   "fieldtype": "Int",
+   "label": "Overlap Days",
+   "non_negative": 1
+  },
+  {
+   "default": "0",
+   "description": "Enable this option to automatically cancel any payment entries associated with a bank transaction when the transaction is unreconciled.",
+   "fieldname": "cancel_payment_entries_on_unreconciliation",
+   "fieldtype": "Check",
+   "label": "Cancel Payment Entries on Unreconciliation"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2024-10-28 12:00:42.496298",
+ "modified": "2025-02-28 14:39:41.487314",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Settings",
