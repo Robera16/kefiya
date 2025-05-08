@@ -212,6 +212,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"description",
 				"party",
 				"party_type",
+				"bank_party_name",
 				"unallocated_amount",
 				"deposit",
 				"withdrawal",
@@ -219,7 +220,6 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"company",
 				"currency",
 				"bank_account",
-				"bank_party_name",
 			];
 		}
 	}
@@ -362,7 +362,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 		$('[data-original-title="Reload List"]').remove();
 		$('[data-fieldname="bank_account"]').remove();
 		$('.custom-btn-group').remove();
-		$('.standard-filter-section').empty();	
+		$('.standard-filter-section').empty();
 		const tab_container = await this.add_custom();
 		tab_container.appendTo('.standard-filter-section');
 		
@@ -576,7 +576,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 					fieldtype: 'Small Text',
 					read_only:  me.data.description ? 1 : 0,
 					reqd: 1,
-					default: me.data.description.substring(0, 140),
+					default: me.data.description ? me.data.description.substring(0, 140) : '',
 				}, {
 					label: 'Posting Date',
 					fieldname: 'posting_date',

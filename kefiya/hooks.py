@@ -37,7 +37,8 @@ app_license = "MIT"
 
 # include js in doctype views
 doctype_js = {
-	"Payment Request": "public/js/payment_request.js"
+	"Payment Request": "public/js/payment_request.js",
+    "Bank Transaction": "public/js/bank_transaction.js"
 }
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
@@ -93,9 +94,10 @@ before_install = "kefiya.utils.install.before_install"
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-#     "ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+    "Journal Entry": "kefiya.overrides.journal_entry.journal_entry.CustomJournalEntry",
+    "Bank Transaction": "kefiya.overrides.bank_transaction.bank_transaction.CustomBankTransaction",
+}
 
 # Document Events
 # ---------------
@@ -137,9 +139,11 @@ doc_events = {
 # }
 
 scheduler_events = {
-    "hourly": [
-        "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
-    ]
+    "cron": {
+        "*/20 * * * *": [
+            "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
+        ]
+    }
 }
 
 # Testing
