@@ -4,8 +4,24 @@
 from __future__ import unicode_literals
 
 import frappe
-from frappe.utils import getdate
 from frappe.utils import today
+
+
+def _use_tan_authentication() -> bool:
+    """Helper: check Kefiya Settings for TAN toggle."""
+    return bool(
+        frappe.db.get_single_value("Kefiya Settings", "enable_tan_authentication")
+    )
+
+
+def _get_fints_controller():
+    """Return the appropriate FinTSController class depending on TAN toggle."""
+    if _use_tan_authentication():
+        from kefiya.utils.fints_controller import FinTSController
+    else:
+        from kefiya.utils.fints_controller_legacy import FinTSController
+    return FinTSController
+
 
 @frappe.whitelist()
 def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
@@ -19,7 +35,7 @@ def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
     :type user_scopet: str
     :return: List of max 10 transactions and all new payment entries
     """
-    from kefiya.utils.fints_controller import FinTSController
+    FinTSController = _get_fints_controller()
     interactive = {"docname": user_scope, "enabled": True}
 
     return FinTSController(kefiya_login, interactive) \
@@ -28,25 +44,35 @@ def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
 
 @frappe.whitelist()
 def get_accounts(kefiya_login, user_scope):
-    """Create payment entries by FinTS transactions.
+    """Return FinTS accounts for a given login.
 
-    :param kefiya_login: kefiya_login doc name
-    :param user_scope: Current open doctype page
-    :type kefiya_login: str
-    :type user_scopet: str
-    :return: FinTS accounts json formated
+    For TAN-enabled mode we may end up triggering a TAN flow.
+    For legacy mode we just use the old controller.
     """
-    from kefiya.utils.fints_controller import FinTSController, TanInteractionRequired
+    FinTSController = _get_fints_controller()
+
     interactive = {"docname": user_scope, "enabled": True}
 
+    # New controller may raise TanInteractionRequired – we just ignore and let
+    # the realtime handler + UI deal with it. Legacy controller won’t raise it.
     try:
         return {
             "accounts": FinTSController(
                 kefiya_login,
-                interactive).get_fints_accounts()
+                interactive
+            ).get_fints_accounts()
         }
-    except TanInteractionRequired:
-        pass
+    except Exception:
+        # In TAN mode this can be TanInteractionRequired – handled via socket.
+        # For legacy mode we re-raise to not hide real errors.
+        if not _use_tan_authentication():
+            raise
+
+
+@frappe.whitelist()
+def is_tan_enabled():
+    """Small helper for JS if needed."""
+    return _use_tan_authentication()
 
 
 @frappe.whitelist()
@@ -252,7 +278,6 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
             else:
                 payment_entry.paid_from = gl_account
 
-
         for reference in payment_entry.references:
             reference.allocated_amount = paid_amount
 
@@ -261,29 +286,24 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
 
         return paid_amount, payment_entry.name, unallocated_amount, outstanding_amount, diff
 
+
 @frappe.whitelist()
 def change_match_against(selected_match):
     kefiya_setting = frappe.get_single("Kefiya Settings")
     kefiya_setting.assign_against = selected_match
     kefiya_setting.save()
 
+
 @frappe.whitelist()
 def resolve_tan_interaction(fints_login: str, values: str | dict):
     """
-    When a user was requested to perform a 2FA, this method is called as a callback to resolve the interaction.
-
-    This method is called twice:
-    1. When the user is requested to choose the TAN mode
-    2. When the user is requested to mark the required action (confirm access or enter TAN) as performed
-
-    :param values: dict containing the interaction values
-        The following keys are expected:
-            possible_tan_modes: list of possible TAN modes
-            tan_mode: selected TAN mode
-            mfa_confirmation: Indicates Step 2, that the user performed the MFA (or entered a TAN)
-            tan: entered TAN (optional: if TAN needs to be entered for chosen tan_mode)
-    :return: doesn't return anything, but raises information via socket to the user
+    When a user was requested to perform a 2FA, this method is called as a callback
+    to resolve the interaction. If TAN is disabled, this is effectively a no-op.
     """
+    if not _use_tan_authentication():
+        # Old banks / legacy mode: nothing to resolve
+        return
+
     from kefiya.utils.fints_controller import FinTSController, TanInteractionRequired
 
     if isinstance(values, str):
@@ -300,10 +320,9 @@ def resolve_tan_interaction(fints_login: str, values: str | dict):
         if values.get("mfa_confirmation"):
             # for tan generators, the TAN is permitted here (may also be empty for Mobile TAN 2.0)
             FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium, tan=values.get("tan"))
-
         else:
             # get index of tan_mode in possible_tan_modes
             FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium)
-
     except TanInteractionRequired:
-        pass # will have triggered user interaction via socket
+        # will have triggered user interaction via socket
+        pass

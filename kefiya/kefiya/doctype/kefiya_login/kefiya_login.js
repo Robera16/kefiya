@@ -24,12 +24,16 @@ frappe.ui.form.on('Kefiya Login', {
 		});
 	},
 	refresh: function(frm) {
-		// frm.set_df_property("account_nr","options",frm.fields_dict.account_nr.value)
-		// if(frm.fields_dict.account_nr.df.reqd && )
-		// frm.toggle_reqd("account_nr",true);
+		// If iban_list exists, it's stored as JSON list of IBAN strings.
 		if(frm.doc.iban_list){
-			frm.set_df_property("account_iban","options",JSON.parse(frm.doc.iban_list).map(x => x.iban));
-			frm.toggle_display("account_iban", true);
+			try {
+				const opts = JSON.parse(frm.doc.iban_list);
+				frm.set_df_property("account_iban","options", opts);
+				frm.toggle_display("account_iban", true);
+			} catch (e) {
+				// fallback: hide field if something is really wrong
+				frm.toggle_display("account_iban", false);
+			}
 		} else if(!frm.doc.account_iban){
 			frm.toggle_display("account_iban",false);
 		}
@@ -57,11 +61,6 @@ frappe.ui.form.on('Kefiya Login', {
 		}
 		*/
 	},
-	/* account_nr: function(frm) {
-		if(frm.doc.account_nr){
-			frm.save();
-		}
-	},*/
 	get_accounts: function(frm) {
 		if (frm.doc.__unsaved){
 			frm.save().then(() => {
@@ -82,7 +81,7 @@ frappe.ui.form.on('Kefiya Login', {
 			callback: function(r) {
 				frm.set_value("account_iban","");
 
-				if (!r || !r?.message?.accounts) {
+				if (!r || !r.message || !r.message.accounts) {
 					// if no qualified data is returned, the request was delayed and will be repeated later.
 					return;
 				}
@@ -92,13 +91,22 @@ frappe.ui.form.on('Kefiya Login', {
 				frm.set_value("account_iban","");
 				frm.set_value("failed_connection",0);
 
-				const ibanList = r.message.accounts.map(x => x.iban);
+				// Support both legacy (array) and new (object) formats:
+				const ibanList = r.message.accounts.map(x => {
+					// new controller sends dict
+					if (x && x.iban) return x.iban;
+					// legacy controller sends arrays / tuples
+					if (Array.isArray(x) && x.length > 0) return x[0];
+					// fallback if it's just a string
+					return x;
+				});
+
 				frm.set_df_property("account_iban","options",ibanList);
 				frm.set_value("account_iban", ibanList[0] || "");
+				frm.set_value("iban_list", JSON.stringify(ibanList));
 				frm.toggle_reqd("account_iban",true);
 			},
 			error: function(/* r */) {
-				// console.log(r);
 				frappe.hide_progress();
 				frm.set_df_property("account_iban","options","");
 				frm.toggle_display("account_iban",false);
