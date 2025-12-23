@@ -228,8 +228,10 @@ class FinTSController:
             return True
 
         if self.kefiya_login.iban_list:
-            self.fints_accounts = [frappe._dict(acc) for acc in json.loads(self.kefiya_login.iban_list)]
-            return True
+            cached_accounts = json.loads(self.kefiya_login.iban_list)
+            if cached_accounts and isinstance(cached_accounts[0], dict):
+                self.fints_accounts = [frappe._dict(acc) for acc in cached_accounts]
+                return True
 
         try:
             with self.trusted_client_context() as client:
@@ -242,7 +244,9 @@ class FinTSController:
                     return False
 
                 self.fints_accounts = accounts_response
-                self.kefiya_login.iban_list = json.dumps([a._asdict() for a in self.fints_accounts])
+                self.kefiya_login.iban_list = json.dumps(
+                    [a.iban for a in self.fints_accounts if getattr(a, "iban", None)]
+                )
 
                 # Reading the accounts is part of the first initialization. So after this was successful, the
                 # client state can be persisted for future use.
@@ -266,15 +270,18 @@ class FinTSController:
         if not value:
             return None
 
-        try:
-            for acc in self.fints_accounts:
+        for acc in self.fints_accounts:
+            if isinstance(acc, dict):
                 if acc.get(key) == value:
                     return acc
-
-        except AttributeError:
-            frappe.throw(_(
-                "SEPA account object has no key '{0}'"
-            ).format(key))
+            else:
+                try:
+                    if getattr(acc, key) == value:
+                        return acc
+                except AttributeError:
+                    frappe.throw(_(
+                        "SEPA account object has no key '{0}'"
+                    ).format(key))
 
         # Account can be None
         return None
