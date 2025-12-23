@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Legacy FinTS controller WITHOUT TAN state handling
-# Used when TAN authentication is disabled in Kefiya Settings
+# Copyright (c) 2019, jHetzer and contributors
+# For license information, please see license.txt
 
 from __future__ import unicode_literals
 
@@ -60,8 +60,8 @@ class FinTSController:
     def __init_tan_processing(self):
         """Show a progressbar on client side.
 
-        NOTE: In legacy controller we only initialise mechanisms,
-        but do NOT implement PSD2 / TAN flows.
+        :todo: Implement PSD2 requirements
+        :return: None
         """
         self.interactive.show_progress_realtime(
             _("Initialise TAN settings"), 20, reload=False
@@ -69,7 +69,6 @@ class FinTSController:
         self.fints_connection.fetch_tan_mechanisms()
 
         if self.fints_connection.init_tan_response:
-            # previous code just raised; legacy banks usually don't hit this
             raise NotImplementedError
 
     def __get_fints_accounts(self):
@@ -236,8 +235,13 @@ class FinTSController:
                 except Exception as e:
                     frappe.throw(_("Failed to attach file"), e)
 
-                curr_doc.start_date = tansactions[0]["date"]
-                curr_doc.end_date = tansactions[-1]["date"]
+                # curr_doc.start_date = tansactions[0]["date"]
+                # curr_doc.end_date = tansactions[-1]["date"]
+                first_txn = tansactions[0][0]
+                last_txn = tansactions[0][-1]
+
+                curr_doc.start_date = first_txn.get("date") or first_txn.get("ValueDate.Date")
+                curr_doc.end_date   = last_txn.get("date") or last_txn.get("ValueDate.Date")
 
                 importer = ImportBankTransaction(self.kefiya_login, self.interactive)
                 importer.kefiya_import(tansactions)
